@@ -8,6 +8,8 @@ wave_instability.ipynb contains a notebook that runs the model with a jet with a
 
 Stochastic_Jet.ipynb contains a notebook that "stirs" the atmosphere in a small jet, meant to mimic the effects of baroclinic instability in the midlatitudes, follows an exmaple in Vallis et. al. (2004) with some small mofidications. 
 
+more documentation is coming soon!
+
 ## References
 
 [pyspharm](https://github.com/jswhit/pyspharm), see especially the Galewsky et. al. Test Case Example.
