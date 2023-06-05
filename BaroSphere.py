@@ -48,7 +48,6 @@ class BaroSphere:
         self.damping_order = damping_order
         self.r = r
         self.rsphere = rsphere
-        self.nu = nu
         self.omega = omega
         self.dt = dt
 
