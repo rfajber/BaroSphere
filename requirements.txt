@@ -1,0 +1,4 @@
+numpy 
+pyspharm
+cartopy
+matplotlib 
