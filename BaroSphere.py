@@ -37,10 +37,11 @@ class BaroSphere:
         omega=7.291e-5,
         rsphere=6.3e6, 
         r=0.1,
-        ntrunc=42,
+        ntrunc=85,
         dt=1800., 
         efold=3*3600,
         damping_order=4,
+        nlat=None 
     ):
 
         # input params 
@@ -53,8 +54,12 @@ class BaroSphere:
 
         # set up the grid 
         # assume that we are using a triangular truncation on gaussian de-alising grid 
-        self.nlon = 3*self.ntrunc+1
-        self.nlat = int(self.nlon/2)
+        if nlat is None:
+            self.nlon = 3*self.ntrunc+1
+            self.nlat = int(self.nlon/2)
+        else:
+            self.nlat=nlat
+            self.nlon=2*self.nlat
 
         delta = 360./self.nlon
         self.lons1 = delta*np.arange(self.nlon)

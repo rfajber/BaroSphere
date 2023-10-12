@@ -1,6 +1,9 @@
 # BaroSphere
 Barotropic Vorticity Equation on a sphere, using the PySpharm package. The model itself is contained in the BaroSphere module. Using conda the requirements can be installed using 
-    conda install requirements.txt
+
+conda install -c "conda-forge/label/cf202003" pyspharm numpy cartopy matplotlib
+
+(optionally add jupyter for notebook integration. requirements file is broken currently.)
 
 The barotropic vorticity equation can be thought of as a thin, rotating, spherical shell of fluid. The model uses the pyshparm module, which provides access to spherical harmonic transforms between data in physical grid space and data in spectral wavenumber space. The model itself is a pseudospectral model, following the ideas in the GFDL barotropic core description. 
 
