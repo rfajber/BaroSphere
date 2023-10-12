@@ -83,7 +83,7 @@ class BaroSphere:
         self.s = np.sin(self.a*self.lats)
         self.f = 2 * self.omega * self.s
 
-        sh = np.hstack([-1,.5*(np.sin(self.lats1*self.a)[1:]+np.sin(self.lats1*self.a)[:-1]),1])
+        sh = np.hstack([1,.5*(np.sin(self.lats1*self.a)[1:]+np.sin(self.lats1*self.a)[:-1]),-1])
         ds = sh[1:] - sh[:-1]
         self.ds = (np.tile(ds,[self.nlon,1])).T
 
@@ -109,7 +109,7 @@ class BaroSphere:
                                    self.nlat,
                                    self.nlon])
             self.tracers_m1=np.copy(self.tracers)
-            
+
         return None 
 
     def get_vorticity_grid(self,u,v):
@@ -150,7 +150,7 @@ class BaroSphere:
                                         self.tracers[n] * v,
                                         self.ntrunc)
             
-            tend_tracers.append(self.x.spectogrd(tend_spec))
+                tend_tracers.append(self.x.spectogrd(tend_spec))
             return [tend_grid,np.array(tend_tracers)]
 
     def phys_tend(self):
@@ -189,6 +189,8 @@ class BaroSphere:
 
         if self.do_tracers:
             tracers_p1 = self.tracers_m1 + 2 * self.dt * tend_tracers
+            for n in range(0,self.ntracers):
+                tracers_p1[n] = self.x.spectogrd(self.x.grdtospec(tracers_p1[n],self.ntrunc)*self.hyperdiff_fact)               
             tracers_f = (1 - 2 *self.r) * self.tracers + self.r * (tracers_p1 + self.tracers_m1) 
             if self.tracer_fix:
                 GS0 = np.sum(self.ds[np.newaxis,:,:]*tracers_f,axis=(1,2))
