@@ -41,7 +41,10 @@ class BaroSphere:
         dt=1800., 
         efold=3*3600,
         damping_order=4,
-        nlat=None 
+        nlat=None,
+        do_tracers=False,
+        ntracers=0,
+        tracer_fix=False 
     ):
 
         # input params 
@@ -51,6 +54,11 @@ class BaroSphere:
         self.rsphere = rsphere
         self.omega = omega
         self.dt = dt
+        self.do_tracers=do_tracers
+        self.ntracers=ntracers
+        self.tracer_fix=tracer_fix
+        if self.do_tracers and self.ntracers<=0:
+            raise Exception('need to have at least 1 tracer if do_tracers')
 
         # set up the grid 
         # assume that we are using a triangular truncation on gaussian de-alising grid 
@@ -68,10 +76,16 @@ class BaroSphere:
 
         #sometimes we need the 2d fields 
         self.lons, self.lats = np.meshgrid(self.lons1, self.lats1)
-        
+#        self.wts = np.tile(self.wt,self.nlon)
+
         #handy conversion factor 
         self.a = np.pi / 180. 
-        self.f = 2 * self.omega * np.sin(self.a * self.lats)
+        self.s = np.sin(self.a*self.lats)
+        self.f = 2 * self.omega * self.s
+
+        sh = np.hstack([-1,.5*(np.sin(self.lats1*self.a)[1:]+np.sin(self.lats1*self.a)[:-1]),1])
+        ds = sh[1:] - sh[:-1]
+        self.ds = (np.tile(ds,[self.nlon,1])).T
 
         #Spharmt object that does all the work doing transforms
         self.x = spharm.Spharmt(nlon=self.nlon,
@@ -88,6 +102,14 @@ class BaroSphere:
         self.efold=efold
         self.hyperdiff_fact = np.exp((-self.dt/self.efold)*(self.lap/self.lap[-1])**(self.damping_order))
 
+        self.vrtg = np.zeros([self.nlat, self.nlon])
+        self.vrtg_m1 = np.copy(self.vrtg)
+        if self.do_tracers:
+            self.tracers=np.zeros([self.ntracers,
+                                   self.nlat,
+                                   self.nlon])
+            self.tracers_m1=np.copy(self.tracers)
+            
         return None 
 
     def get_vorticity_grid(self,u,v):
@@ -98,7 +120,8 @@ class BaroSphere:
         vrts = self.x.grdtospec(vrtg)
         return self.x.getuv(vrts,0*vrts)
 
-    def vrt_time_tendency(self,vrtg):
+    def model_time_tendency(self,
+                            vrtg,):
 
         # get vrtspec, u, and v on the grid 
         vrtspec = self.x.grdtospec(vrtg,self.ntrunc)
@@ -109,53 +132,72 @@ class BaroSphere:
                                         (self.f + vrtg) * u,
                                         (self.f + vrtg) * v,
                                         self.ntrunc)
-
-        # do the biharmonic filtering implicitly
-        #tend_spec = (tend_spec - self.dfac1 * vrtspec) / self.dfac2
-
         # get back to grid space
         tend_grid = self.x.spectogrd(tend_spec)
 
-        # return vorticity and tendency on gridspace
-        return tend_grid
+        if not self.do_tracers:
+            # return vorticity and tendency on gridspace
+            return tend_grid
+        
+        if self.do_tracers:
+
+            tend_tracers=[]
+
+            for n in range(0,self.ntracers):
+
+                __,tend_spec=self.x.getvrtdivspec(
+                                        self.tracers[n] * u,
+                                        self.tracers[n] * v,
+                                        self.ntrunc)
+            
+            tend_tracers.append(self.x.spectogrd(tend_spec))
+            return [tend_grid,np.array(tend_tracers)]
 
     def phys_tend(self):
-        return 0 * self.vrtg
+        return 0 #* self.vrtg
 
-    def spectral_damping(self,vrtg):
-        vrts=self.x.grdtospec(vrtg,self.ntrunc) 
-        vrts_damp=vrts*self.hyperdiff_fact
-        return self.x.spectogrd(vrts)
+    # def spectral_damping(self,vrtg):
+    #     vrts_damp=vrts
+    #     return vrts_damp)
 
+    def globalMean(self,f):
+        return np.sum(f*self.wts)/(2*self.nlon)
+    
     #for time stepping
     def RA_leapfrog(self):
 
         #m1 n-1 time step
-        #0 n time stpe 
+        #   n time stpe 
         #p1 n+1 time step 
 
         # get tendencies 
-        tend_grid = self.vrt_time_tendency(self.vrtg)
+        if self.do_tracers:
+            tend_grid, tend_tracers = self.model_time_tendency(self.vrtg)
+        else:
+            tend_grid = self.model_time_tendency(self.vrtg)
 
-        # leap frog step
         vrtg_p1 = self.vrtg_m1 + 2 * self.dt * tend_grid 
         vrts_p1 = self.x.grdtospec(vrtg_p1,self.ntrunc)*self.hyperdiff_fact
 
         vrtg_p1 = self.x.spectogrd(vrts_p1)
 
-        #apply spectral damping
-#        vrtg_p1=self.spectral_damping(vrtg_p1)
-
         # Robert Filtering step
         vrtg_f = (1 - 2 *self.r) * self.vrtg + self.r * (vrtg_p1 + self.vrtg_m1) 
-
-        #this is where we do the "physics"
-        vrtg_f += self.dt * self.phys_tend()
-
-
         # update the variables before next time step             
         self.vrtg_m1 = vrtg_f
         self.vrtg = vrtg_p1
+
+        if self.do_tracers:
+            tracers_p1 = self.tracers_m1 + 2 * self.dt * tend_tracers
+            tracers_f = (1 - 2 *self.r) * self.tracers + self.r * (tracers_p1 + self.tracers_m1) 
+            if self.tracer_fix:
+                GS0 = np.sum(self.ds[np.newaxis,:,:]*tracers_f,axis=(1,2))
+                tracers_f[tracers_f<0]=0.0
+                GS1 = np.sum(self.ds[np.newaxis,:,:]*tracers_f,axis=(1,2))
+                tracers_f *= GS0/GS1
+            self.tracers_m1 = tracers_f
+            self.tracers = tracers_p1
+            # print(tend_tracers.shape,tracers_f.shape,tracers_p1.shape)
 
         return None
 
@@ -179,11 +221,3 @@ class BaroSphere:
                  * np.cos( self.lons * self.a * m )
         
         return vrtg0
-
-    #ensure that we can get and set attrs from outside.
-    def get_attr(self,key):
-        return vars(self)[key]
-
-    def set_attr(self,key,val):
-        vars(self)[key]=val
-        return None
