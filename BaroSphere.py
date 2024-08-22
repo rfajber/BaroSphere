@@ -160,6 +160,9 @@ class BaroSphere:
     #     vrts_damp=vrts
     #     return vrts_damp)
 
+    def spectralDamping(self,f):
+        return self.x.spectogrd(self.x.grdtospec(f,self.ntrunc)*self.hyperdiff_fact)
+        
     def globalMean(self,f):
         return np.sum(f*self.wts)/(2*self.nlon)
     
@@ -177,9 +180,10 @@ class BaroSphere:
             tend_grid = self.model_time_tendency(self.vrtg)
 
         vrtg_p1 = self.vrtg_m1 + 2 * self.dt * tend_grid 
-        vrts_p1 = self.x.grdtospec(vrtg_p1,self.ntrunc)*self.hyperdiff_fact
+        vrtg_p1 = self.spectralDamping(vrtg_p1)
+        # vrts_p1 = self.x.grdtospec(vrtg_p1,self.ntrunc)*self.hyperdiff_fact
 
-        vrtg_p1 = self.x.spectogrd(vrts_p1)
+        # vrtg_p1 = self.x.spectogrd(vrts_p1)
 
         # Robert Filtering step
         vrtg_f = (1 - 2 *self.r) * self.vrtg + self.r * (vrtg_p1 + self.vrtg_m1) 
@@ -190,7 +194,7 @@ class BaroSphere:
         if self.do_tracers:
             tracers_p1 = self.tracers_m1 + 2 * self.dt * tend_tracers
             for n in range(0,self.ntracers):
-                tracers_p1[n] = self.x.spectogrd(self.x.grdtospec(tracers_p1[n],self.ntrunc)*self.hyperdiff_fact)               
+                tracers_p1[n] = self.spectralDamping(tracers_p1[n])
             tracers_f = (1 - 2 *self.r) * self.tracers + self.r * (tracers_p1 + self.tracers_m1) 
             if self.tracer_fix:
                 GS0 = np.sum(self.ds[np.newaxis,:,:]*tracers_f,axis=(1,2))

@@ -1,2 +1,5 @@
 *.png
 __pycache__
+project_description.md
+misc_test.ipynb
+frames/*
